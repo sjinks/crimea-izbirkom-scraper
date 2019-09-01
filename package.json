@@ -1,0 +1,31 @@
+{
+  "name": "izbirkom-scraper",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Volodymyr Kolesnykov <volodymyr@wildwolf.name> (https://wildwolf.name/)",
+  "license": "MIT",
+  "dependencies": {
+    "fast-csv": "^3.4.0",
+    "pending-xhr-puppeteer": "^2.1.0",
+    "puppeteer": "^1.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^12.7.3",
+    "@types/puppeteer": "^1.19.1",
+    "ts-node": "^8.3.0",
+    "typescript": "^3.6.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sjinks/crimea-izbirkom-scraper.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sjinks/crimea-izbirkom-scraper/issues"
+  },
+  "homepage": "https://github.com/sjinks/crimea-izbirkom-scraper#readme",
+  "description": ""
+}
