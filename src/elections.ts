@@ -15,7 +15,7 @@ interface PersonalInfo {
     p_deputy: string;
     p_criminalRecs: string;
     p_status: string;
-    p_screenshot: Buffer;
+    p_screenshot?: Buffer;
 }
 
 interface Candidate {
@@ -264,6 +264,8 @@ async function save(e: Election): Promise<void> {
         for (const candidate of report.candidates) {
             const { info } = candidate;
             const { p_screenshot } = info as PersonalInfo;
+            delete candidate.info;
+            delete (info as PersonalInfo).p_screenshot;
 
             const url = new URL(candidate.url);
 
@@ -278,7 +280,7 @@ async function save(e: Election): Promise<void> {
             };
 
             csvstream.write(row);
-            await promises.writeFile(`./elections/c_${row.cid}.jpg`, p_screenshot);
+            await promises.writeFile(`./elections/c_${row.cid}.jpg`, p_screenshot as Buffer);
         }
 
         if (report.screenshot) {
