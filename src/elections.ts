@@ -1,9 +1,8 @@
-import puppeteer = require('puppeteer');
-import util = require('util');
-import fs = require('fs');
-import csv = require('fast-csv');
-
-const writeFile = util.promisify(fs.writeFile);
+import puppeteer from 'puppeteer';
+import { createWriteStream, mkdirSync, promises } from 'fs';
+import { format } from 'fast-csv';
+import Tesseract from 'tesseract.js';
+import { PendingXHR } from 'pending-xhr-puppeteer';
 
 interface PersonalInfo {
     p_name: string;
@@ -38,6 +37,31 @@ interface Candidate {
 async function preparePage(page: puppeteer.Page): Promise<void> {
     await page.setViewport({ width: 1600, height: 1200 });
     page.on('dialog', async (d: puppeteer.Dialog): Promise<void> => await d.dismiss());
+}
+
+async function solveCaptcha(page: puppeteer.Page, captcha: Buffer): Promise<void> {
+    let c: Buffer = captcha;
+
+    while (true) {
+        const data = await Tesseract.recognize(c, 'eng');
+        const text = data.data.text.replace(/ /g, '');
+        await page.type('#captcha', text);
+        await page.waitForSelector('#send', { visible: true });
+
+        const [validationResponse] = await Promise.all([
+            page.waitForResponse((r) => r.url().indexOf('/captcha-service/validate/captcha/value/') !== -1),
+            page.click('#send'),
+        ]);
+
+        if (validationResponse.ok()) {
+            break;
+        }
+
+        const newImage = await page.waitForResponse((r) => r.url().indexOf('/captcha-service/image') !== -1);
+        c = await newImage.buffer();
+    }
+
+    await page.waitForNavigation({ waitUntil: ['load', 'networkidle0'] });
 }
 
 async function getPersonalInfo(browser: puppeteer.Browser, url: string): Promise<PersonalInfo> {
@@ -152,6 +176,10 @@ async function parseElectionReport(browser: puppeteer.Browser, url: string): Pro
         }
 
         const rows = await page.$$('table table[id^="table-"] > tbody > tr');
+        if (!rows.length) {
+            console.error('Report has no rows');
+        }
+
         for (const row of rows) {
             result.candidates.push(await parseReportRow(browser, page, row));
         }
@@ -176,7 +204,24 @@ async function parseElectionsPage(browser: puppeteer.Browser, url: string): Prom
     await preparePage(page);
 
     try {
+        let captcha: Buffer | undefined;
+
+        const detector = async (r: puppeteer.Request) => {
+            if (r.url().indexOf('/captcha-service/image') !== -1) {
+                const resp = r.response();
+                if (resp) {
+                    captcha = await resp.buffer();
+                }
+            }
+        };
+
+        page.on('requestfinished', detector);
         await page.goto(url, { waitUntil: ['load', 'networkidle0'] });
+        page.off('requestfinished', detector);
+
+        if (captcha) {
+            await solveCaptcha(page, captcha);
+        }
 
         const elements: puppeteer.ElementHandle<Element>[] = await page.$$('td.tdReport a[href*="type=220"]');
         const urls = await Promise.all(
@@ -207,8 +252,8 @@ async function save(e: Election): Promise<void> {
     const url = new URL(e.url);
     const vrn = url.searchParams.get('vrn') || '';
 
-    const csvstream = csv.format();
-    const out = fs.createWriteStream(`./elections/e_${vrn}.csv`, { mode: 0o644 });
+    const csvstream = format();
+    const out = createWriteStream(`./elections/e_${vrn}.csv`, { mode: 0o644 });
     csvstream.pipe(out);
 
     for (const report of e.reports) {
@@ -219,8 +264,6 @@ async function save(e: Election): Promise<void> {
         for (const candidate of report.candidates) {
             const { info } = candidate;
             const { p_screenshot } = info as PersonalInfo;
-            delete candidate.info;
-            delete (info as PersonalInfo).p_screenshot;
 
             const url = new URL(candidate.url);
 
@@ -235,11 +278,11 @@ async function save(e: Election): Promise<void> {
             };
 
             csvstream.write(row);
-            await writeFile(`./elections/c_${row.cid}.jpg`, p_screenshot);
+            await promises.writeFile(`./elections/c_${row.cid}.jpg`, p_screenshot);
         }
 
         if (report.screenshot) {
-            await writeFile(`./elections/e_${vrn}_${rm}.jpg`, report.screenshot);
+            await promises.writeFile(`./elections/e_${vrn}_${rm}.jpg`, report.screenshot);
         }
     }
 }
@@ -257,6 +300,18 @@ async function main(browser: puppeteer.Browser): Promise<void> {
 
         await preparePage(page);
         await page.goto('http://www.crimea.vybory.izbirkom.ru/region/crimea', { waitUntil: ['load', 'networkidle0'] });
+
+        await page.focus('#start_date');
+        await page.keyboard.down('ControlLeft');
+        await page.keyboard.press('KeyA');
+        await page.keyboard.up('ControlLeft');
+        await page.keyboard.press('Delete');
+        await page.type('#start_date', '01.11.2019');
+
+        await Promise.all([
+            page.waitForNavigation({ waitUntil: 'networkidle0' }),
+            page.click('form[name="calendar"] input[type="submit"]')
+        ]);
 
         elements = await page.$$('a.vibLink');
         const elections = await Promise.all(
@@ -282,7 +337,7 @@ async function main(browser: puppeteer.Browser): Promise<void> {
 }
 
 try {
-    fs.mkdirSync('./elections', { mode: 0o755 });
+    mkdirSync('./elections', { mode: 0o755 });
 } catch (e) {
     if (e.code !== 'EEXIST') {
         throw e;

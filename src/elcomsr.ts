@@ -1,9 +1,6 @@
-import puppeteer = require('puppeteer');
-import util = require('util');
-import fs = require('fs');
-import csv = require('fast-csv');
-
-const writeFile = util.promisify(fs.writeFile);
+import puppeteer from 'puppeteer';
+import { createWriteStream, mkdirSync, promises } from 'fs';
+import { format } from 'fast-csv';
 
 async function preparePage(page: puppeteer.Page): Promise<void> {
     await page.setViewport({ width: 1024, height: 768 });
@@ -81,8 +78,8 @@ async function save(c: Commission): Promise<void> {
 
     const [vrn] = c.url.match(/\d+$/) as string[];
 
-    const csvstream = csv.format();
-    const out = fs.createWriteStream(`./elcoms/r_${vrn}.csv`, { mode: 0o644 });
+    const csvstream = format();
+    const out = createWriteStream(`./elcoms/r_${vrn}.csv`, { mode: 0o644 });
     csvstream.pipe(out);
 
     for (const member of c.members) {
@@ -96,7 +93,7 @@ async function save(c: Commission): Promise<void> {
         csvstream.write(row);
     }
 
-    await writeFile(`./elcoms/r_${vrn}.jpg`, c.screenshot);
+    await promises.writeFile(`./elcoms/r_${vrn}.jpg`, c.screenshot);
 }
 
 async function main(browser: puppeteer.Browser): Promise<void> {
@@ -129,7 +126,7 @@ async function main(browser: puppeteer.Browser): Promise<void> {
 }
 
 try {
-    fs.mkdirSync('./elcoms', { mode: 0o755 });
+    mkdirSync('./elcoms', { mode: 0o755 });
 } catch (e) {
     if (e.code !== 'EEXIST') {
         throw e;

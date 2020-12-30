@@ -1,10 +1,7 @@
-import puppeteer = require('puppeteer');
-import * as PendingXHR from 'pending-xhr-puppeteer';
-import util = require('util');
-import fs = require('fs');
-import csv = require('fast-csv');
-
-const writeFile = util.promisify(fs.writeFile);
+import puppeteer from 'puppeteer';
+import PendingXHR from 'pending-xhr-puppeteer';
+import { createWriteStream, mkdirSync, promises } from 'fs';
+import { format } from 'fast-csv';
 
 async function preparePage(page: puppeteer.Page): Promise<void> {
     await page.setViewport({ width: 1024, height: 768 });
@@ -82,8 +79,8 @@ async function save(c: Commission): Promise<void> {
     const url = new URL(c.url);
     const vrn = url.searchParams.get('vrn') || '';
 
-    const csvstream = csv.format();
-    const out = fs.createWriteStream(`./elcoms/c_${vrn}.csv`, { mode: 0o644 });
+    const csvstream = format();
+    const out = createWriteStream(`./elcoms/c_${vrn}.csv`, { mode: 0o644 });
     csvstream.pipe(out);
 
     for (const member of c.members) {
@@ -98,7 +95,7 @@ async function save(c: Commission): Promise<void> {
         csvstream.write(row);
     }
 
-    await writeFile(`./elcoms/c_${vrn}.jpg`, c.screenshot);
+    await promises.writeFile(`./elcoms/c_${vrn}.jpg`, c.screenshot);
 }
 
 async function main(browser: puppeteer.Browser): Promise<void> {
@@ -121,8 +118,8 @@ async function main(browser: puppeteer.Browser): Promise<void> {
         });
 
         await pendingXHR.waitForAllXhrFinished();
-        await page.waitFor(1000);
-        
+        await page.waitForTimeout(1000);
+
         elements = await page.$$('#tree li[id]');
         const urls = await Promise.all(
             elements.map(async (el: puppeteer.ElementHandle<Element>): Promise<string> => await page.evaluate((item: HTMLElement): string => `http://www.crimea.vybory.izbirkom.ru/region/crimea?action=ik&vrn=${item.id}`, el))
@@ -139,7 +136,7 @@ async function main(browser: puppeteer.Browser): Promise<void> {
 }
 
 try {
-    fs.mkdirSync('./elcoms', { mode: 0o755 });
+    mkdirSync('./elcoms', { mode: 0o755 });
 } catch (e) {
     if (e.code !== 'EEXIST') {
         throw e;
