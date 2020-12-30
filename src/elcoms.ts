@@ -119,7 +119,7 @@ async function main(browser: puppeteer.Browser): Promise<void> {
 
         await pendingXHR.waitForAllXhrFinished();
         await page.waitForTimeout(1000);
-        
+
         elements = await page.$$('#tree li[id]');
         const urls = await Promise.all(
             elements.map(async (el: puppeteer.ElementHandle<Element>): Promise<string> => await page.evaluate((item: HTMLElement): string => `http://www.crimea.vybory.izbirkom.ru/region/crimea?action=ik&vrn=${item.id}`, el))
