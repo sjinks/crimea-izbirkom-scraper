@@ -11,8 +11,8 @@
   "dependencies": {
     "fast-csv": "^4.3.6",
     "pending-xhr-puppeteer": "^2.3.3",
-    "puppeteer": "^5.5.0",
-    "tesseract.js": "^2.1.4"
+    "puppeteer": "^24.37.5",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@types/node": "^14.14.16",
